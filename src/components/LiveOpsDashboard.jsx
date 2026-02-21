@@ -616,7 +616,7 @@ export default function LiveOpsDashboard() {
                 </div>
 
                 {/* Bottom Actions */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: 'auto', paddingTop: '1.5rem', flexShrink: 0 }}>
                     {shiftState?.active ? (
                         <button
                             onClick={handleCloseShiftClick}
