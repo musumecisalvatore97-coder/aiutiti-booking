@@ -388,8 +388,7 @@ export default function LiveOpsDashboard() {
         try {
             await callApi('update_table_status', { session_id: sessionId, status });
             fetchTables();
-            // Optional: closeModal() if UX dictates, but leaving open allows rapid changes
-            // closeModal();
+            closeModal();
         } catch (err) {
             openAlertModal('Errore Aggiornamento Stato', err.message);
         }
@@ -504,12 +503,13 @@ export default function LiveOpsDashboard() {
                 borderRight: '1px solid rgba(255,255,255,0.05)',
                 display: 'flex',
                 flexDirection: 'column',
-                padding: '2rem',
+                padding: '2rem 1rem 2rem 2rem', // Reduced right padding slightly for scrollbar
                 justifyContent: 'space-between',
-                flexShrink: 0
+                flexShrink: 0,
+                overflowY: 'auto'
             }}>
                 {/* Top Section */}
-                <div>
+                <div style={{ paddingRight: '1rem', display: 'flex', flexDirection: 'column', minHeight: 'min-content' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '3rem' }}>
                         <img src="/logo_aiutiti.png" alt="AIutiti" style={{ height: '40px', width: 'auto' }} />
                         <span style={{ fontSize: '1.8rem', fontWeight: 'bold' }}>AI<span style={{ color: '#FF4081' }}>utiti</span></span>
@@ -575,12 +575,12 @@ export default function LiveOpsDashboard() {
 
                     {/* RESERVATIONS */}
                     {shiftState?.active && (
-                        <div>
+                        <>
                             <div style={{ color: '#94A3B8', fontSize: '0.85rem', marginBottom: '1rem', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 'bold', display: 'flex', justifyContent: 'space-between' }}>
                                 <span>In Arrivo Oggi</span>
                                 <span style={{ background: '#3B82F6', color: 'white', padding: '0.1rem 0.5rem', borderRadius: '10px', fontSize: '0.75rem' }}>{reservations.length}</span>
                             </div>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem', maxHeight: '250px', overflowY: 'auto', paddingRight: '0.5rem' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem', paddingRight: '0.5rem' }}>
                                 {reservations.length === 0 ? (
                                     <div style={{ color: '#64748B', fontSize: '0.9rem', textAlign: 'center', padding: '1rem 0', fontStyle: 'italic' }}>Nessuna prenotazione</div>
                                 ) : (
@@ -611,7 +611,7 @@ export default function LiveOpsDashboard() {
                                     ))
                                 )}
                             </div>
-                        </div>
+                        </>
                     )}
                 </div>
 
@@ -835,52 +835,62 @@ export default function LiveOpsDashboard() {
             </div>
 
             {/* MODALS */}
-            {modalConfig.type === 'alert' && (
-                <Modal isOpen={modalConfig.isOpen} onClose={closeModal} title={modalConfig.data.title}>
-                    <p style={{ color: '#94A3B8', marginBottom: '1.5rem', lineHeight: '1.5' }}>{modalConfig.data.message}</p>
-                    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                        <button onClick={closeModal} style={{ background: '#334155', color: 'white', border: 'none', padding: '0.8rem 1.5rem', borderRadius: '12px', cursor: 'pointer', fontWeight: 'bold' }}>Chiudi</button>
-                    </div>
-                </Modal>
-            )}
+            {
+                modalConfig.type === 'alert' && (
+                    <Modal isOpen={modalConfig.isOpen} onClose={closeModal} title={modalConfig.data.title}>
+                        <p style={{ color: '#94A3B8', marginBottom: '1.5rem', lineHeight: '1.5' }}>{modalConfig.data.message}</p>
+                        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                            <button onClick={closeModal} style={{ background: '#334155', color: 'white', border: 'none', padding: '0.8rem 1.5rem', borderRadius: '12px', cursor: 'pointer', fontWeight: 'bold' }}>Chiudi</button>
+                        </div>
+                    </Modal>
+                )
+            }
 
-            {modalConfig.type === 'closeShift' && (
-                <CloseShiftModal
-                    isOpen={modalConfig.isOpen}
-                    onClose={closeModal}
-                    onConfirm={confirmCloseShift}
-                    tables={tables}
-                />
-            )}
+            {
+                modalConfig.type === 'closeShift' && (
+                    <CloseShiftModal
+                        isOpen={modalConfig.isOpen}
+                        onClose={closeModal}
+                        onConfirm={confirmCloseShift}
+                        tables={tables}
+                    />
+                )
+            }
 
-            {modalConfig.type === 'openTable' && (
-                <OpenTableModal
-                    isOpen={modalConfig.isOpen}
-                    onClose={closeModal}
-                    onConfirm={confirmOpenTable}
-                    table={modalConfig.data.table}
-                />
-            )}
+            {
+                modalConfig.type === 'openTable' && (
+                    <OpenTableModal
+                        isOpen={modalConfig.isOpen}
+                        onClose={closeModal}
+                        onConfirm={confirmOpenTable}
+                        table={modalConfig.data.table}
+                    />
+                )
+            }
 
-            {modalConfig.type === 'occupiedTable' && (
-                <OccupiedTableModal
-                    isOpen={modalConfig.isOpen}
-                    onClose={closeModal}
-                    onConfirm={confirmCloseTable}
-                    onUpdateStatus={handleUpdateTableStatus}
-                    table={modalConfig.data.table}
-                />
-            )}
+            {
+                modalConfig.type === 'occupiedTable' && (
+                    <OccupiedTableModal
+                        isOpen={modalConfig.isOpen}
+                        onClose={closeModal}
+                        onConfirm={confirmCloseTable}
+                        onUpdateStatus={handleUpdateTableStatus}
+                        table={modalConfig.data.table}
+                    />
+                )
+            }
 
-            {modalConfig.type === 'assignReservation' && (
-                <AssignReservationModal
-                    isOpen={modalConfig.isOpen}
-                    onClose={closeModal}
-                    onConfirm={confirmAssignReservation}
-                    reservation={modalConfig.data.reservation}
-                    tables={tables}
-                />
-            )}
+            {
+                modalConfig.type === 'assignReservation' && (
+                    <AssignReservationModal
+                        isOpen={modalConfig.isOpen}
+                        onClose={closeModal}
+                        onConfirm={confirmAssignReservation}
+                        reservation={modalConfig.data.reservation}
+                        tables={tables}
+                    />
+                )
+            }
 
             {/* Custom pulse animation for overdue timers */}
             <style>{`
@@ -890,6 +900,6 @@ export default function LiveOpsDashboard() {
                     100% { opacity: 1; }
                 }
             `}</style>
-        </div>
+        </div >
     );
 }
