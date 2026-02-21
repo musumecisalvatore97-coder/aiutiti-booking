@@ -574,45 +574,91 @@ export default function LiveOpsDashboard() {
                     })()}
 
                     {/* RESERVATIONS */}
-                    {shiftState?.active && (
-                        <>
-                            <div style={{ color: '#94A3B8', fontSize: '0.85rem', marginBottom: '1rem', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 'bold', display: 'flex', justifyContent: 'space-between' }}>
-                                <span>In Arrivo Oggi</span>
-                                <span style={{ background: '#3B82F6', color: 'white', padding: '0.1rem 0.5rem', borderRadius: '10px', fontSize: '0.75rem' }}>{reservations.length}</span>
-                            </div>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem', paddingRight: '0.5rem' }}>
-                                {reservations.length === 0 ? (
-                                    <div style={{ color: '#64748B', fontSize: '0.9rem', textAlign: 'center', padding: '1rem 0', fontStyle: 'italic' }}>Nessuna prenotazione</div>
-                                ) : (
-                                    reservations.map(res => (
-                                        <div key={res.reservation_id} style={{ background: 'rgba(255,255,255,0.03)', padding: '0.8rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
-                                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.3rem' }}>
-                                                <strong style={{ fontSize: '0.95rem' }}>{res.customer_name}</strong>
-                                                <span style={{ color: '#3B82F6', fontWeight: 'bold', fontSize: '0.9rem' }}>
-                                                    {new Date(res.start_at).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}
-                                                </span>
+                    {shiftState?.active && (() => {
+                        const confirmedRes = reservations.filter(r => r.status === 'CONFIRMED' || r.status === 'confirmed');
+                        const waitlistRes = reservations.filter(r => r.status === 'waitlist');
+
+                        return (
+                            <>
+                                {/* Confirmed */}
+                                <div style={{ color: '#94A3B8', fontSize: '0.85rem', marginBottom: '1rem', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 'bold', display: 'flex', justifyContent: 'space-between' }}>
+                                    <span>In Arrivo Oggi</span>
+                                    <span style={{ background: '#3B82F6', color: 'white', padding: '0.1rem 0.5rem', borderRadius: '10px', fontSize: '0.75rem' }}>{confirmedRes.length}</span>
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem', paddingRight: '0.5rem', marginBottom: '2rem' }}>
+                                    {confirmedRes.length === 0 ? (
+                                        <div style={{ color: '#64748B', fontSize: '0.9rem', textAlign: 'center', padding: '1rem 0', fontStyle: 'italic' }}>Nessuna prenotazione</div>
+                                    ) : (
+                                        confirmedRes.map(res => (
+                                            <div key={res.reservation_id} style={{ background: 'rgba(255,255,255,0.03)', padding: '0.8rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.3rem' }}>
+                                                    <strong style={{ fontSize: '0.95rem' }}>{res.customer_name}</strong>
+                                                    <span style={{ color: '#3B82F6', fontWeight: 'bold', fontSize: '0.9rem' }}>
+                                                        {new Date(res.start_at).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}
+                                                    </span>
+                                                </div>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#94A3B8', fontSize: '0.85rem' }}>
+                                                    <Users size={14} /> {res.party_size} pax
+                                                </div>
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); handleAssignReservationClick(res); }}
+                                                    style={{
+                                                        width: '100%', background: 'rgba(59, 130, 246, 0.15)', color: '#3B82F6', border: '1px solid rgba(59, 130, 246, 0.3)',
+                                                        padding: '0.6rem', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem',
+                                                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', marginTop: '0.8rem', transition: 'all 0.2s'
+                                                    }}
+                                                    onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(59, 130, 246, 0.3)'; }}
+                                                    onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(59, 130, 246, 0.15)'; }}
+                                                >
+                                                    <UserPlus size={16} /> ASSEGNA TAVOLO
+                                                </button>
                                             </div>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#94A3B8', fontSize: '0.85rem' }}>
-                                                <Users size={14} /> {res.party_size} pax
-                                            </div>
-                                            <button
-                                                onClick={(e) => { e.stopPropagation(); handleAssignReservationClick(res); }}
-                                                style={{
-                                                    width: '100%', background: 'rgba(59, 130, 246, 0.15)', color: '#3B82F6', border: '1px solid rgba(59, 130, 246, 0.3)',
-                                                    padding: '0.6rem', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem',
-                                                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', marginTop: '0.8rem', transition: 'all 0.2s'
-                                                }}
-                                                onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(59, 130, 246, 0.3)'; }}
-                                                onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(59, 130, 246, 0.15)'; }}
-                                            >
-                                                <UserPlus size={16} /> ASSEGNA TAVOLO
-                                            </button>
+                                        ))
+                                    )}
+                                </div>
+
+                                {/* Waitlist */}
+                                {waitlistRes.length > 0 && (
+                                    <>
+                                        <div style={{ color: '#94A3B8', fontSize: '0.85rem', marginBottom: '1rem', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 'bold', display: 'flex', justifyContent: 'space-between' }}>
+                                            <span>Lista D'Attesa</span>
+                                            <span style={{ background: '#F59E0B', color: 'white', padding: '0.1rem 0.5rem', borderRadius: '10px', fontSize: '0.75rem' }}>{waitlistRes.length}</span>
                                         </div>
-                                    ))
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem', paddingRight: '0.5rem' }}>
+                                            {waitlistRes.map(res => (
+                                                <div key={res.reservation_id} style={{ background: 'rgba(245, 158, 11, 0.05)', padding: '0.8rem', borderRadius: '12px', border: '1px solid rgba(245, 158, 11, 0.2)' }}>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.3rem' }}>
+                                                        <strong style={{ fontSize: '0.95rem', color: '#FCD34D' }}>{res.customer_name}</strong>
+                                                        <span style={{ color: '#F59E0B', fontWeight: 'bold', fontSize: '0.9rem' }}>
+                                                            {new Date(res.start_at).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}
+                                                        </span>
+                                                    </div>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#94A3B8', fontSize: '0.85rem' }}>
+                                                        <Users size={14} /> {res.party_size} pax
+                                                    </div>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#94A3B8', fontSize: '0.85rem', marginTop: '0.2rem' }}>
+                                                        <Phone size={12} /> {res.phone || 'N/A'}
+                                                    </div>
+                                                    <button
+                                                        onClick={(e) => { e.stopPropagation(); handleAssignReservationClick(res); }}
+                                                        style={{
+                                                            width: '100%', background: 'rgba(245, 158, 11, 0.15)', color: '#F59E0B', border: '1px solid rgba(245, 158, 11, 0.3)',
+                                                            padding: '0.6rem', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem',
+                                                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', marginTop: '0.8rem', transition: 'all 0.2s'
+                                                        }}
+                                                        onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(245, 158, 11, 0.3)'; }}
+                                                        onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(245, 158, 11, 0.15)'; }}
+                                                    >
+                                                        <UserPlus size={16} /> ASSEGNA TAVOLO LIBERO
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </>
                                 )}
-                            </div>
-                        </>
-                    )}
+                            </>
+                        );
+                    })}
                 </div>
 
                 {/* Bottom Actions */}

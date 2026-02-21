@@ -26,14 +26,16 @@ const corsHeaders = {
 // --- 1. Robust Heuristic Parser (Mock LLM) ---
 // Handles people, date (relative), time (loose), name, phone
 // --- 1. Robust AI Parser (OpenAI) ---
-async function parseMessageOpenAI(text: string, today: string, timezone: string, apiKey: string): Promise<ParsingResult> {
+async function parseMessageOpenAI(text: string, today: string, timezone: string, apiKey: string, activeContext: string = ""): Promise<ParsingResult> {
     const systemPrompt = `
     You are a helpful restaurant booking assistant.
     Today is ${today} (Timezone: ${timezone}).
     
+    ${activeContext}
+
     Your goal is to extract booking details from the user's message.
     Return a JSON object with the following fields:
-    - intent: "upsert" (if user wants to book/modify), "cancel" (if user wants to cancel), "confirm" (if user confirms), "availability" (if asking for availability), "bho" (if unclear/chitchat).
+    - intent: "upsert" (if user wants to book/modify), "cancel" (if user wants to cancel), "confirm" (if user confirms), "waitlist" (if user asks to join the waitlist or replies yes to waitlist proposal), "availability" (if asking for availability), "bho" (if unclear/chitchat).
     - date: YYYY-MM-DD (Calculate relative dates like "next friday" based on today). If not specified, null.
     - time: HH:MM (24h format). If not specified, null.
     - people: number (party size). If not specified, null.
@@ -49,6 +51,7 @@ async function parseMessageOpenAI(text: string, today: string, timezone: string,
     - If the user provides just a name (e.g., "Carmelo", "Giulia"), treat it as intent "upsert" with customer_name set.
     - If the user provides a phone number, extract it.
     - If the user says "confermo", "si", "si grazie", "va bene", "ok", intent is "confirm".
+    - If the user says "si in lista", "mettimi in attesa", "lista d'attesa", intent is "waitlist".
     - If the user says "disdico", "annulla", intent is "cancel".
     - If the user says "ciao", "buonasera", "salve", intent is "bho" and reply "Ciao! Vuoi prenotare un tavolo? Dimmi per quante persone e quando.".
     - If the user input is short and looks like a name or data (e.g. "4 persone", "ore 21"), treat as intent "upsert".
@@ -182,6 +185,38 @@ Deno.serve(async (req) => {
             });
         }
 
+        // --- ANTI DOUBLE-BOOKING & USER MEMORY ---
+        // Find if this session/chat_id already has an active reservation for today or the future
+        let activeReservationContext = "";
+        try {
+            const startOfToday = new Date();
+            startOfToday.setHours(0, 0, 0, 0);
+
+            const { data: activeRes } = await adminSupabase
+                .from('reservations')
+                .select('party_size, start_at, status')
+                .eq('chat_id', cleanChatId)
+                .in('status', ['CONFIRMED', 'waitlist'])
+                .gte('start_at', startOfToday.toISOString())
+                .order('start_at', { ascending: true })
+                .limit(1)
+                .single();
+
+            if (activeRes) {
+                const resTime = format(toZonedTime(new Date(activeRes.start_at), timezone), "HH:mm");
+                const resStatus = activeRes.status === 'waitlist' ? 'in LISTA D\'ATTESA' : 'CONFERMATA';
+
+                activeReservationContext = `
+                CRITICAL INSTRUCTION: The user ALREADY HAS an active reservation (${resStatus}) for today/future at ${resTime} for ${activeRes.party_size} people. 
+                - DO NOT allow them to make a NEW reservation for today under any circumstances to prevent double-booking.
+                - If they ask for a new table, politely decline, remind them of their existing reservation at ${resTime}, and ask if they want to modify or cancel the existing one instead.
+                - If they ask to modify/cancel, set intent to "cancel" or "upsert" accordingly.
+                - If they just say "ciao", welcome them back, remind them of their table at ${resTime}, and ask if they need anything else.`;
+            }
+        } catch (e) {
+            console.error("Error checking active reservations", e);
+        }
+
         // Fix: Force 'today' to be the Timezone-aware local time string for the AI
         // This prevents the AI from thinking it's "Yesterday" if server is UTC and it's late night
         // 'today' variable in parseMessageOpenAI signature is strictly a Date object, but we want to pass a string description.
@@ -197,7 +232,7 @@ Deno.serve(async (req) => {
         // For now, let's format it here and update the function call.
 
         const localDateTimeStr = format(localDate, "yyyy-MM-dd HH:mm"); // e.g. 2026-02-17 18:40
-        const result = await parseMessageOpenAI(message || '', localDateTimeStr, timezone, openAiKey);
+        const result = await parseMessageOpenAI(message || '', localDateTimeStr, timezone, openAiKey, activeReservationContext);
 
         // If AI generated a direct reply for missing info (e.g. "Per quando?"), use it as default.
         let replyText = result.reply || "Non ho capito 😅 Dimmi per quante persone e a che ora vuoi prenotare.";
@@ -266,7 +301,7 @@ Deno.serve(async (req) => {
                     }
                 } else {
                     // No Option (Full)
-                    replyText = "Non ho disponibilità per quella data/ora. Prova a cambiare orario.";
+                    replyText = "Purtroppo il locale è al completo per quell'orario. 🙏 Vuoi che ti inserisca in Lista d'Attesa? (Rispondi 'sì lista d'attesa' per confermare)";
                 }
             }
 
@@ -355,12 +390,83 @@ Deno.serve(async (req) => {
 
         } else if (result.intent === 'cancel') {
             // CANCEL FLOW
-            const { error } = await adminSupabase.rpc('web_cancel', {
+            const { data: cancelData, error } = await adminSupabase.rpc('web_cancel', {
                 p_chat_id: cleanChatId,
                 p_source: cleanSource,
                 p_session_id: cleanSessionId
             });
-            replyText = error ? "Errore cancellazione." : "Prenotazione cancellata.";
+
+            if (error) {
+                console.error("Cancel RPC Error:", error);
+                replyText = "Si è verificato un errore tecnico durante la cancellazione.";
+            } else if (cancelData?.status === 'OK') {
+                if (cancelData.type === 'confirmed') {
+                    replyText = "La tua prenotazione confermata è stata cancellata correttamente. Alla prossima!";
+
+                    // Notifica l'Admin via Telegram
+                    const res = cancelData.reservation;
+                    let formattedDate = res.start_at;
+                    try {
+                        if (res.start_at) {
+                            const dateObj = new Date(res.start_at);
+                            const zonedDate = toZonedTime(dateObj, timezone);
+                            formattedDate = format(zonedDate, "dd/MM/yy 'ore' HH:mm");
+                        }
+                    } catch (e) { console.error("Error formating cancellation date", e); }
+
+                    const msg = `🚨 *PRENOTAZIONE CANCELLATA* 🚨\n\n👤 Nome: *${res.customer_name || 'N/A'}*\n👥 Persone: *${res.party_size}*\n📅 Quando: *${formattedDate}*\n\n_(Il tavolo è stato liberato nel database)_`;
+                    await sendTelegramMessage(msg);
+
+                } else if (cancelData.type === 'pending') {
+                    replyText = "Ho annullato la tua richiesta in corso. Posso aiutarti in altro modo?";
+                }
+            } else {
+                replyText = "Non ho trovato nessuna prenotazione attiva da cancellare a tuo nome.";
+            }
+
+        } else if (result.intent === 'waitlist') {
+            // WAITLIST FLOW
+            const { data: waitlistData, error: waitlistError } = await adminSupabase.rpc('web_waitlist_confirm', {
+                p_chat_id: cleanChatId,
+                p_source: cleanSource,
+                p_session_id: cleanSessionId
+            });
+
+            if (waitlistError) {
+                console.error("Waitlist RPC Error", waitlistError);
+                replyText = "Si è verificato un errore tecnico. Riprova più tardi.";
+            } else {
+                const status = waitlistData.status;
+                const reason = waitlistData.reason;
+
+                if (status === 'OK') {
+                    replyText = `Sei stato aggiunto alla Lista d'Attesa! Ti contatteremo in caso si liberi un tavolo. (ID: ${waitlistData.reservation_id})`;
+
+                    // --- ADMIN NOTIFICATION ---
+                    console.log(`[NOTIFY] Sending Telegram for Waitlist ID: ${waitlistData.reservation_id}`);
+
+                    let formattedDate = waitlistData.start_at;
+                    try {
+                        if (waitlistData.start_at) {
+                            const dateObj = new Date(waitlistData.start_at);
+                            const zonedDate = toZonedTime(dateObj, timezone);
+                            formattedDate = format(zonedDate, "dd/MM/yy 'ore' HH:mm");
+                        }
+                    } catch (e) { console.error("Error formatting date:", e); }
+
+                    const appUrl = Deno.env.get('APP_URL') || 'http://localhost:5173';
+                    const msg = `⏳ *Nuovo Cliente in Lista D'Attesa!* ⏳\n\n👤 Nome: *${waitlistData.customer_name || 'N/A'}*\n👥 Persone: *${waitlistData.party_size}*\n📅 Quando: *${formattedDate}*\n📞 Tel: \`${waitlistData.phone || 'N/A'}\`\n\n👉 [Apri Dashboard](${appUrl}/#ops)`;
+
+                    await sendTelegramMessage(msg);
+                } else if (reason === 'NO_PENDING_FOUND') {
+                    replyText = "Non ho trovato nessuna richiesta valida da inserire in lista d'attesa.";
+                } else if (reason === 'MISSING_DATE_TIME' || reason === 'MISSING_CONTACT_INFO') {
+                    replyText = "Mancano dei dati. Dimmi nome, numero di telefono e quante persone siete.";
+                } else {
+                    replyText = "Impossibile aggiungere in lista: " + (reason || 'Errore sconosciuto');
+                }
+            }
+
         } else if (result.intent === 'bho') {
             // AI didn't understand -> use its reply or default
         }
@@ -369,7 +475,7 @@ Deno.serve(async (req) => {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         })
 
-    } catch (error) {
+    } catch (error: any) {
         return new Response(JSON.stringify({ error: error.message }), {
             status: 400,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
