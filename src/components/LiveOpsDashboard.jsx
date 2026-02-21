@@ -1,16 +1,18 @@
 import { useState, useEffect } from 'react';
 import {
     Unlock,
-    ChefHat,
-    LogOut,
-    PlayCircle,
-    StopCircle,
     LayoutGrid,
-    Receipt,
     Users,
     AlertCircle,
     Minus,
-    Plus
+    Plus,
+    Timer,
+    Euro,
+    UserPlus,
+    CheckCircle,
+    PlayCircle,
+    StopCircle,
+    LogOut
 } from 'lucide-react';
 import Modal from './ui/Modal';
 
@@ -97,44 +99,103 @@ function OpenTableModal({ isOpen, onClose, onConfirm, table }) {
     );
 }
 
-function CheckoutModal({ isOpen, onClose, onConfirm, table }) {
+function OccupiedTableModal({ isOpen, onClose, onConfirm, onUpdateStatus, table }) {
     const [amount, setAmount] = useState('');
 
     useEffect(() => {
-        if (isOpen) {
-            setAmount('');
-        }
+        if (isOpen) setAmount('');
     }, [isOpen]);
 
     if (!isOpen || !table) return null;
 
-    return (
-        <Modal isOpen={isOpen} onClose={onClose} title={`Conto Tavolo ${table.label}`}>
-            <div style={{ marginBottom: '2rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.8rem', color: '#94A3B8' }}>
-                    <span>Coperti (PAX)</span>
-                    <span style={{ color: 'white', fontWeight: 'bold' }}>{table.pax}</span>
-                </div>
+    const statuses = [
+        { id: 'seated', label: '🪑 Seduti', color: '#3B82F6' },
+        { id: 'ordering', label: '📝 In Ordine', color: '#F59E0B' },
+        { id: 'eating', label: '🍝 In Pasto', color: '#D946EF' },
+        { id: 'bill_requested', label: '💸 Chiesto Conto', color: '#EF4444' }
+    ];
 
-                <label style={{ display: 'block', marginBottom: '0.5rem', color: '#94A3B8', fontWeight: '600' }}>Importo Pagato (€) - Opzionale</label>
+    return (
+        <Modal isOpen={isOpen} onClose={onClose} title={`Gestione Tavolo ${table.label}`}>
+            <div style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', color: '#94A3B8', fontSize: '1.1rem' }}>
+                <span>Coperti: <strong style={{ color: 'white' }}>{table.pax}</strong></span>
+                {table.session_notes && <span style={{ color: '#2DD4BF', fontWeight: 'bold' }}>{table.session_notes.replace('Reservation: ', '')}</span>}
+            </div>
+
+            <div style={{ marginBottom: '2rem' }}>
+                <label style={{ display: 'block', marginBottom: '0.8rem', color: '#94A3B8', fontWeight: '600', fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '1px' }}>Stato Attuale</label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.8rem' }}>
+                    {statuses.map(s => (
+                        <button
+                            key={s.id}
+                            onClick={() => onUpdateStatus(table.session_id, s.id)}
+                            style={{
+                                padding: '1rem 0.5rem', borderRadius: '12px', cursor: 'pointer', fontWeight: 'bold', border: 'none',
+                                background: table.session_status === s.id ? s.color : 'rgba(255,255,255,0.05)',
+                                color: table.session_status === s.id ? '#fff' : '#94A3B8',
+                                boxShadow: table.session_status === s.id ? `0 4px 15px -3px ${s.color}66` : 'none',
+                                transition: 'all 0.2s', fontSize: '0.95rem'
+                            }}
+                        >
+                            {s.label}
+                        </button>
+                    ))}
+                </div>
+            </div>
+
+            <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '1.5rem', marginBottom: '2rem' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', color: '#94A3B8', fontWeight: '600' }}>Incasso per liberare tavolo (€)</label>
                 <input
-                    type="number"
-                    step="0.01"
-                    value={amount}
-                    onChange={(e) => setAmount(e.target.value)}
-                    placeholder="0.00"
-                    style={{
-                        width: '100%', padding: '1rem', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
-                        borderRadius: '12px', color: 'white', fontSize: '1.2rem', outline: 'none',
-                        boxSizing: 'border-box'
-                    }}
-                    autoFocus
+                    type="number" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00"
+                    style={{ width: '100%', padding: '1rem', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: 'white', fontSize: '1.2rem', outline: 'none', boxSizing: 'border-box' }}
                 />
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
-                <button onClick={onClose} style={{ background: 'transparent', color: '#94A3B8', border: 'none', padding: '0.8rem 1.5rem', borderRadius: '12px', cursor: 'pointer', fontWeight: 'bold' }}>Annulla</button>
-                <button onClick={() => onConfirm(table.table_id, amount)} style={{ background: '#EF4444', color: 'white', border: 'none', padding: '0.8rem 1.5rem', borderRadius: '12px', cursor: 'pointer', fontWeight: 'bold' }}>Chiudi Tavolo</button>
+                <button onClick={onClose} style={{ background: 'transparent', color: '#94A3B8', border: 'none', padding: '0.8rem 1.5rem', borderRadius: '12px', cursor: 'pointer', fontWeight: 'bold' }}>Chiudi Finestra</button>
+                <button onClick={() => onConfirm(table.table_id, amount)} style={{ background: '#10B981', color: 'white', border: 'none', padding: '0.8rem 1.5rem', borderRadius: '12px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <CheckCircle size={18} /> Libera Tavolo
+                </button>
+            </div>
+        </Modal>
+    );
+}
+
+function AssignReservationModal({ isOpen, onClose, onConfirm, reservation, tables }) {
+    if (!isOpen || !reservation) return null;
+    const freeTables = tables.filter(t => !t.session_status || t.session_status === 'closed');
+
+    return (
+        <Modal isOpen={isOpen} onClose={onClose} title={`Assegna ${reservation.customer_name}`}>
+            <div style={{ color: '#94A3B8', marginBottom: '1.5rem', fontSize: '1.1rem' }}>
+                Persone: <strong style={{ color: 'white' }}>{reservation.party_size}</strong>
+            </div>
+
+            <label style={{ display: 'block', marginBottom: '1rem', color: '#94A3B8', fontWeight: '600', fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '1px' }}>Scegli un tavolo libero</label>
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: '1rem', marginBottom: '2rem', maxHeight: '300px', overflowY: 'auto', paddingRight: '0.5rem' }}>
+                {freeTables.length === 0 ? (
+                    <div style={{ color: '#EF4444', gridColumn: '1 / -1', padding: '1rem', background: 'rgba(239, 68, 68, 0.1)', borderRadius: '12px' }}>
+                        Nessun tavolo libero disponibile.
+                    </div>
+                ) : freeTables.map(t => (
+                    <button
+                        key={t.table_id}
+                        onClick={() => onConfirm(reservation.reservation_id, t.table_id)}
+                        style={{
+                            padding: '1rem', background: 'linear-gradient(135deg, rgba(45, 212, 191, 0.1), rgba(15, 23, 42, 0.4))',
+                            border: '1px solid rgba(45, 212, 191, 0.3)', borderRadius: '12px',
+                            color: '#2DD4BF', fontWeight: 'bold', cursor: 'pointer', transition: 'all 0.2s'
+                        }}
+                        onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(45, 212, 191, 0.2)'; e.currentTarget.style.transform = 'scale(1.02)'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.background = 'linear-gradient(135deg, rgba(45, 212, 191, 0.1), rgba(15, 23, 42, 0.4))'; e.currentTarget.style.transform = 'scale(1)'; }}
+                    >
+                        <div style={{ fontSize: '1.5rem', color: 'white', marginBottom: '0.3rem' }}>{t.label}</div>
+                        <div style={{ fontSize: '0.85rem' }}>Capacità max: {t.capacity}</div>
+                    </button>
+                ))}
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <button onClick={onClose} style={{ background: '#334155', color: 'white', border: 'none', padding: '0.8rem 1.5rem', borderRadius: '12px', cursor: 'pointer', fontWeight: 'bold' }}>Annulla</button>
             </div>
         </Modal>
     );
@@ -151,11 +212,17 @@ export default function LiveOpsDashboard() {
     const [tenantId, setTenantId] = useState(null);
     const [tables, setTables] = useState([]); // Floor plan state
     const [reservations, setReservations] = useState([]); // Today's reservations
+    const [now, setNow] = useState(Date.now()); // For occupancy timer updates
 
     // Modal State
     const [modalConfig, setModalConfig] = useState({ isOpen: false, type: null, data: null });
     const closeModal = () => setModalConfig({ isOpen: false, type: null, data: null });
     const openAlertModal = (title, message) => setModalConfig({ isOpen: true, type: 'alert', data: { title, message } });
+
+    useEffect(() => {
+        const int = setInterval(() => setNow(Date.now()), 30000); // update timer every 30s
+        return () => clearInterval(int);
+    }, []);
 
     // --- Actions ---
 
@@ -317,6 +384,36 @@ export default function LiveOpsDashboard() {
         }
     };
 
+    const handleUpdateTableStatus = async (sessionId, status) => {
+        try {
+            await callApi('update_table_status', { session_id: sessionId, status });
+            fetchTables();
+            // Optional: closeModal() if UX dictates, but leaving open allows rapid changes
+            // closeModal();
+        } catch (err) {
+            openAlertModal('Errore Aggiornamento Stato', err.message);
+        }
+    };
+
+    const handleAssignReservationClick = (res) => {
+        setModalConfig({ isOpen: true, type: 'assignReservation', data: { reservation: res } });
+    };
+
+    const confirmAssignReservation = async (reservationId, tableId) => {
+        try {
+            await callApi('assign_reservation', {
+                reservation_id: reservationId,
+                table_id: tableId,
+                shift_id: shiftState.shift.id
+            });
+            fetchTables();
+            fetchReservations();
+            closeModal();
+        } catch (err) {
+            openAlertModal('Errore Assegnazione', err.message);
+        }
+    };
+
     // Poll for status if null (maybe lost connection)
     useEffect(() => {
         if (isAuthenticated && !shiftState) {
@@ -438,23 +535,47 @@ export default function LiveOpsDashboard() {
                     </div>
 
                     {/* Quick Stats */}
+                    {shiftState?.active && (() => {
+                        const occupiedTables = tables.filter(t => t.session_status && t.session_status !== 'closed');
+                        const seatedPax = occupiedTables.reduce((acc, t) => acc + (t.pax || 0), 0);
+                        const expectedPaxFromRes = reservations.reduce((acc, r) => acc + (r.party_size || 0), 0);
+                        // Simplified projection: 35 EUR per pax (seated + expected)
+                        const projectedRevenue = ((seatedPax + expectedPaxFromRes) * 35).toFixed(2);
+
+                        return (
+                            <div>
+                                <div style={{ color: '#94A3B8', fontSize: '0.85rem', marginBottom: '1rem', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 'bold' }}>Panoramica</div>
+
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.8rem' }}>
+                                    <span>Tavoli Occupati</span>
+                                    <span style={{ fontWeight: 'bold', color: 'white' }}>
+                                        {occupiedTables.length} / {tables.length}
+                                    </span>
+                                </div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.8rem' }}>
+                                    <span>Coperti Attuali</span>
+                                    <span style={{ fontWeight: 'bold', color: 'white' }}>{seatedPax}</span>
+                                </div>
+
+                                <div style={{
+                                    background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(15, 23, 42, 0.4))',
+                                    border: '1px solid rgba(16, 185, 129, 0.2)',
+                                    padding: '1rem', borderRadius: '16px', marginTop: '1.5rem', marginBottom: '2rem'
+                                }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#10B981', fontSize: '0.85rem', fontWeight: 'bold', textTransform: 'uppercase' }}>
+                                        <Euro size={14} /> Incasso Proiettato
+                                    </div>
+                                    <div style={{ fontSize: '1.8rem', fontWeight: 'bold', color: 'white', marginTop: '0.3rem' }}>
+                                        €{projectedRevenue}
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    })()}
+
+                    {/* RESERVATIONS */}
                     {shiftState?.active && (
                         <div>
-                            <div style={{ color: '#94A3B8', fontSize: '0.85rem', marginBottom: '1rem', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 'bold' }}>Panoramica</div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.8rem' }}>
-                                <span>Tavoli</span>
-                                <span style={{ fontWeight: 'bold', color: 'white' }}>
-                                    {tables.filter(t => t.session_status && t.session_status !== 'closed').length} / {tables.length}
-                                </span>
-                            </div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-                                <span>Coperti</span>
-                                <span style={{ fontWeight: 'bold', color: 'white' }}>
-                                    {tables.reduce((acc, t) => acc + (t.session_status && t.session_status !== 'closed' ? (t.pax || 0) : 0), 0)}
-                                </span>
-                            </div>
-
-                            {/* RESERVATIONS */}
                             <div style={{ color: '#94A3B8', fontSize: '0.85rem', marginBottom: '1rem', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 'bold', display: 'flex', justifyContent: 'space-between' }}>
                                 <span>In Arrivo Oggi</span>
                                 <span style={{ background: '#3B82F6', color: 'white', padding: '0.1rem 0.5rem', borderRadius: '10px', fontSize: '0.75rem' }}>{reservations.length}</span>
@@ -474,6 +595,18 @@ export default function LiveOpsDashboard() {
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#94A3B8', fontSize: '0.85rem' }}>
                                                 <Users size={14} /> {res.party_size} pax
                                             </div>
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); handleAssignReservationClick(res); }}
+                                                style={{
+                                                    width: '100%', background: 'rgba(59, 130, 246, 0.15)', color: '#3B82F6', border: '1px solid rgba(59, 130, 246, 0.3)',
+                                                    padding: '0.6rem', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem',
+                                                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', marginTop: '0.8rem', transition: 'all 0.2s'
+                                                }}
+                                                onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(59, 130, 246, 0.3)'; }}
+                                                onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(59, 130, 246, 0.15)'; }}
+                                            >
+                                                <UserPlus size={16} /> ASSEGNA TAVOLO
+                                            </button>
                                         </div>
                                     ))
                                 )}
@@ -576,6 +709,37 @@ export default function LiveOpsDashboard() {
                     }}>
                         {tables.map(table => {
                             const isOccupied = table.session_status && table.session_status !== 'closed';
+
+                            // Pro UX Logic
+                            const getStatusColor = (status) => {
+                                switch (status) {
+                                    case 'seated': return '#3B82F6'; // Blue
+                                    case 'ordering': return '#F59E0B'; // Yellow
+                                    case 'eating': return '#D946EF'; // Purple
+                                    case 'bill_requested': return '#EF4444'; // Red
+                                    default: return '#EF4444';
+                                }
+                            };
+
+                            const statusColor = isOccupied ? getStatusColor(table.session_status) : '#2DD4BF'; // default Teal
+
+                            const getElapsedMinutes = (openedAt) => {
+                                if (!openedAt) return 0;
+                                return Math.floor((now - new Date(openedAt).getTime()) / 60000);
+                            };
+
+                            const elapsed = isOccupied ? getElapsedMinutes(table.opened_at) : 0;
+                            const isOverdue = elapsed >= 90;
+                            const formatElapsed = (mins) => {
+                                const h = Math.floor(mins / 60);
+                                const m = mins % 60;
+                                return h > 0 ? `${h}h ${m}m` : `${m}m`;
+                            };
+
+                            // Check if reservation is attached
+                            const isReservation = table.session_notes && table.session_notes.startsWith('Reservation:');
+                            const resName = isReservation ? table.session_notes.replace('Reservation: ', '') : null;
+
                             return (
                                 <button
                                     key={table.table_id}
@@ -586,7 +750,7 @@ export default function LiveOpsDashboard() {
                                         background: isOccupied
                                             ? 'linear-gradient(145deg, #1E293B, #0F172A)'
                                             : 'linear-gradient(135deg, rgba(30, 41, 59, 1), rgba(15, 23, 42, 1))',
-                                        border: isOccupied ? '2px solid #EF4444' : '1px solid rgba(45, 212, 191, 0.3)',
+                                        border: `1.5px solid ${isOccupied ? statusColor : 'rgba(45, 212, 191, 0.3)'}`,
                                         color: 'white',
                                         display: 'flex',
                                         flexDirection: 'column',
@@ -596,51 +760,71 @@ export default function LiveOpsDashboard() {
                                         transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
                                         position: 'relative',
                                         boxShadow: isOccupied
-                                            ? '0 10px 25px -5px rgba(239, 68, 68, 0.3)'
+                                            ? `0 10px 25px -5px ${statusColor}33`
                                             : '0 4px 6px -1px rgba(0, 0, 0, 0.2)',
                                         transform: 'translateY(0)',
                                     }}
                                     onMouseEnter={(e) => {
                                         e.currentTarget.style.transform = 'translateY(-5px)';
                                         e.currentTarget.style.boxShadow = isOccupied
-                                            ? '0 20px 30px -5px rgba(239, 68, 68, 0.4)'
+                                            ? `0 20px 30px -5px ${statusColor}66`
                                             : '0 10px 15px -3px rgba(45, 212, 191, 0.2)';
                                     }}
                                     onMouseLeave={(e) => {
                                         e.currentTarget.style.transform = 'translateY(0)';
                                         e.currentTarget.style.boxShadow = isOccupied
-                                            ? '0 10px 25px -5px rgba(239, 68, 68, 0.3)'
+                                            ? `0 10px 25px -5px ${statusColor}33`
                                             : '0 4px 6px -1px rgba(0, 0, 0, 0.2)';
                                     }}
                                 >
                                     <div style={{
                                         fontSize: '2rem',
                                         fontWeight: '800',
-                                        color: isOccupied ? '#EF4444' : 'white',
-                                        marginBottom: '0.8rem',
+                                        color: isOccupied ? statusColor : 'white',
+                                        marginBottom: resName ? '0.2rem' : '0.8rem',
                                         fontFamily: 'Outfit, sans-serif'
                                     }}>
                                         {table.label}
                                     </div>
 
+                                    {resName && (
+                                        <div style={{ color: '#94A3B8', fontSize: '0.8rem', fontWeight: 'bold', marginBottom: '0.8rem', maxWidth: '80%', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                            {resName}
+                                        </div>
+                                    )}
+
                                     <div style={{
-                                        background: isOccupied ? 'rgba(239, 68, 68, 0.1)' : 'rgba(45, 212, 191, 0.1)',
+                                        background: isOccupied ? `${statusColor}22` : 'rgba(45, 212, 191, 0.1)',
                                         padding: '0.5rem 1rem',
                                         borderRadius: '12px',
                                         fontSize: '1rem',
                                         fontWeight: '600',
-                                        color: isOccupied ? '#EF4444' : '#2DD4BF',
+                                        color: statusColor,
                                         display: 'flex', alignItems: 'center', gap: '0.5rem'
                                     }}>
                                         <Users size={16} />
                                         {isOccupied ? `${table.pax}` : table.capacity}
                                     </div>
 
+                                    {/* Timer */}
                                     {isOccupied && (
                                         <div style={{
-                                            position: 'absolute', top: 15, right: 15,
-                                            width: 12, height: 12, borderRadius: '50%', background: '#EF4444',
-                                            boxShadow: '0 0 15px #EF4444'
+                                            position: 'absolute', top: 12, left: 16,
+                                            display: 'flex', alignItems: 'center', gap: '4px',
+                                            fontSize: '0.75rem', fontWeight: 'bold',
+                                            color: isOverdue ? '#EF4444' : '#94A3B8',
+                                            animation: isOverdue ? 'pulse 2s infinite' : 'none'
+                                        }}>
+                                            <Timer size={12} /> {formatElapsed(elapsed)}
+                                        </div>
+                                    )}
+
+                                    {/* Status Dot */}
+                                    {isOccupied && (
+                                        <div style={{
+                                            position: 'absolute', top: 12, right: 16,
+                                            width: 12, height: 12, borderRadius: '50%', background: statusColor,
+                                            boxShadow: `0 0 10px ${statusColor}`
                                         }} />
                                     )}
                                 </button>
@@ -679,14 +863,33 @@ export default function LiveOpsDashboard() {
             )}
 
             {modalConfig.type === 'occupiedTable' && (
-                <CheckoutModal
+                <OccupiedTableModal
                     isOpen={modalConfig.isOpen}
                     onClose={closeModal}
                     onConfirm={confirmCloseTable}
+                    onUpdateStatus={handleUpdateTableStatus}
                     table={modalConfig.data.table}
                 />
             )}
 
+            {modalConfig.type === 'assignReservation' && (
+                <AssignReservationModal
+                    isOpen={modalConfig.isOpen}
+                    onClose={closeModal}
+                    onConfirm={confirmAssignReservation}
+                    reservation={modalConfig.data.reservation}
+                    tables={tables}
+                />
+            )}
+
+            {/* Custom pulse animation for overdue timers */}
+            <style>{`
+                @keyframes pulse {
+                    0% { opacity: 1; }
+                    50% { opacity: 0.5; color: #EF4444; }
+                    100% { opacity: 1; }
+                }
+            `}</style>
         </div>
     );
 }
