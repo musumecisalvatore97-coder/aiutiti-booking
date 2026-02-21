@@ -107,6 +107,16 @@ Deno.serve(async (req) => {
             return new Response(JSON.stringify(data), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
         }
 
+        if (action === 'update_table_status') {
+            const { session_id, status } = payload;
+            const { data, error } = await supabase.rpc('update_table_session_status', {
+                p_session_id: session_id,
+                p_status: status
+            });
+            if (error) throw error;
+            return new Response(JSON.stringify(data), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+        }
+
         // --- RESERVATIONS ---
 
         if (action === 'get_todays_reservations') {
@@ -116,6 +126,17 @@ Deno.serve(async (req) => {
             });
             if (error) throw error;
             return new Response(JSON.stringify({ reservations: data }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+        }
+
+        if (action === 'assign_reservation') {
+            const { reservation_id, table_id, shift_id } = payload;
+            const { data, error } = await supabase.rpc('assign_table_to_reservation', {
+                p_reservation_id: reservation_id,
+                p_table_id: table_id,
+                p_shift_id: shift_id
+            });
+            if (error) throw error;
+            return new Response(JSON.stringify(data), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
         }
 
         return new Response(JSON.stringify({ error: `Unknown action: ${action}` }), {
