@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from 'react';
-import { Calendar as CalendarIcon, Search, Phone, ChevronLeft, ChevronRight, User, Users, Clock, LogOut, CheckCircle2, Menu, ChefHat } from 'lucide-react';
+import { Calendar as CalendarIcon, Search, Phone, ChevronLeft, ChevronRight, User, Users, Clock, LogOut, CheckCircle2, Menu, ChefHat, Megaphone } from 'lucide-react';
 import { DayPicker } from 'react-day-picker';
 import 'react-day-picker/dist/style.css';
 import { it } from 'date-fns/locale';
@@ -29,6 +29,11 @@ export default function AdminDashboard() {
     // CRM State
     const [searchQuery, setSearchQuery] = useState('');
     const [searchResults, setSearchResults] = useState([]);
+
+    // Marketing State
+    const [activeOffer, setActiveOffer] = useState('');
+    const [offerHistory, setOfferHistory] = useState([]);
+    const [marketingLoaded, setMarketingLoaded] = useState(false);
 
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
@@ -128,6 +133,43 @@ export default function AdminDashboard() {
             setLoading(false);
         }
     }
+
+    // 4. Load Marketing Offer
+    const loadMarketingOffer = async () => {
+        if (marketingLoaded) return;
+        setLoading(true);
+        try {
+            const res = await callApi({ action: 'get_offer', password: accessCode });
+            setActiveOffer(res.offer || '');
+            setOfferHistory(res.history || []);
+            setMarketingLoaded(true);
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const saveMarketingOffer = async () => {
+        setLoading(true);
+        try {
+            await callApi({ action: 'set_offer', password: accessCode, offer: activeOffer });
+            alert("Offerta di Upselling attivata con successo! L'IA inizierà a proporla.");
+            const res = await callApi({ action: 'get_offer', password: accessCode });
+            setOfferHistory(res.history || []);
+        } catch (err) {
+            console.error(err);
+            alert("Errore nel salvataggio: " + err.message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        if (activeTab === 'marketing') {
+            loadMarketingOffer();
+        }
+    }, [activeTab]);
 
     // API Helper
     const callApi = async (body) => {
@@ -233,6 +275,7 @@ export default function AdminDashboard() {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '3rem' }}>
                         <NavButtonDesktop icon={<CalendarIcon size={20} />} label="Agenda" active={activeTab === 'agenda'} onClick={() => setActiveTab('agenda')} />
                         <NavButtonDesktop icon={<Users size={20} />} label="Clienti" active={activeTab === 'crm'} onClick={() => setActiveTab('crm')} />
+                        <NavButtonDesktop icon={<Megaphone size={20} />} label="Marketing" active={activeTab === 'marketing'} onClick={() => setActiveTab('marketing')} />
                         <div style={{ height: '1px', background: 'rgba(255,255,255,0.1)', margin: '1rem 0' }} />
                         <NavButtonDesktop
                             icon={<ChefHat size={20} color="#2DD4BF" />}
@@ -386,6 +429,87 @@ export default function AdminDashboard() {
                             )}
                         </>
                     )}
+
+                    {activeTab === 'marketing' && (
+                        <div className="fade-in">
+                            <h2 style={{ fontSize: isMobile ? '1.5rem' : '2rem', fontWeight: 'bold', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                <Megaphone color="#FF4081" /> AI Upselling
+                            </h2>
+                            <p style={{ color: '#A0AEC0', marginBottom: '2rem', lineHeight: '1.6' }}>
+                                Imposta un'offerta speciale per spingere un prodotto.
+                                L'Intelligenza Artificiale la proporrà <b>solo e in modo naturale</b>
+                                a chi completa con successo una prenotazione.
+                            </p>
+
+                            <div style={{
+                                background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,64,129,0.3)',
+                                padding: isMobile ? '1.5rem' : '2rem', borderRadius: '24px'
+                            }}>
+                                <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '1rem', color: '#FF4081' }}>Messaggio Promozionale</label>
+                                <textarea
+                                    value={activeOffer}
+                                    onChange={(e) => setActiveOffer(e.target.value)}
+                                    placeholder="Es. Promozione della settimana: Spaghetto all'astice con calice in omaggio a 25€"
+                                    style={{
+                                        width: '100%', minHeight: '120px', padding: '1.2rem',
+                                        borderRadius: '16px', border: '1px solid rgba(255,255,255,0.1)',
+                                        background: 'rgba(0,0,0,0.3)', color: 'white', fontSize: '1rem',
+                                        fontFamily: 'inherit', resize: 'vertical',
+                                        boxSizing: 'border-box'
+                                    }}
+                                />
+                                <div style={{ marginTop: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <span style={{ fontSize: '0.85rem', color: '#A0AEC0' }}>Lascia vuoto per disattivare l'upselling.</span>
+                                    <button
+                                        onClick={saveMarketingOffer}
+                                        disabled={loading}
+                                        style={{
+                                            background: 'linear-gradient(135deg, #FF4081, #d6004b)',
+                                            color: 'white', border: 'none', padding: '0.8rem 1.5rem',
+                                            borderRadius: '12px', fontWeight: 'bold', cursor: loading ? 'not-allowed' : 'pointer',
+                                            opacity: loading ? 0.7 : 1
+                                        }}
+                                    >
+                                        {loading ? 'Salvataggio...' : 'Attiva Upselling'}
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* History Section */}
+                            {offerHistory.length > 0 && (
+                                <div style={{ marginTop: '2rem' }}>
+                                    <h3 style={{ fontSize: '1.1rem', color: '#A0AEC0', marginBottom: '1rem', textTransform: 'uppercase', letterSpacing: '1px' }}>Storico Promozioni</h3>
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.8rem' }}>
+                                        {offerHistory.map((promo, idx) => (
+                                            <button
+                                                key={idx}
+                                                onClick={() => setActiveOffer(promo)}
+                                                style={{
+                                                    background: 'rgba(255, 64, 129, 0.1)',
+                                                    border: '1px solid rgba(255, 64, 129, 0.4)',
+                                                    color: 'white',
+                                                    padding: '0.8rem 1.2rem',
+                                                    borderRadius: '100px',
+                                                    cursor: 'pointer',
+                                                    fontSize: '0.9rem',
+                                                    maxWidth: '100%',
+                                                    overflow: 'hidden',
+                                                    textOverflow: 'ellipsis',
+                                                    whiteSpace: 'nowrap',
+                                                    transition: 'all 0.2s',
+                                                    textAlign: 'left'
+                                                }}
+                                                onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255, 64, 129, 0.2)'; e.currentTarget.style.transform = 'translateY(-2px)' }}
+                                                onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255, 64, 129, 0.1)'; e.currentTarget.style.transform = 'translateY(0)' }}
+                                            >
+                                                {promo}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </div>
             </div>
 
@@ -394,6 +518,7 @@ export default function AdminDashboard() {
                 <div style={{ position: 'fixed', bottom: '20px', left: '50%', transform: 'translateX(-50%)', width: '90%', maxWidth: '350px', background: 'rgba(30,40,60,0.9)', backdropFilter: 'blur(20px)', borderRadius: '30px', padding: '0.4rem', display: 'flex', justifyContent: 'space-around', alignItems: 'center', boxShadow: '0 20px 40px rgba(0,0,0,0.5)', zIndex: 100 }}>
                     <NavButtonMobile icon={<CalendarIcon size={20} />} label="Agenda" active={activeTab === 'agenda'} onClick={() => setActiveTab('agenda')} />
                     <NavButtonMobile icon={<Users size={20} />} label="Clienti" active={activeTab === 'crm'} onClick={() => setActiveTab('crm')} />
+                    <NavButtonMobile icon={<Megaphone size={20} />} label="Marketing" active={activeTab === 'marketing'} onClick={() => setActiveTab('marketing')} />
                     <NavButtonMobile icon={<ChefHat size={20} color="#2DD4BF" />} label="Live" active={false} onClick={() => window.location.hash = '#ops'} />
                 </div>
             )}

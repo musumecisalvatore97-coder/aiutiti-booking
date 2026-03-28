@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import '../liveops.css';
 import {
     Unlock,
     LayoutGrid,
@@ -488,42 +489,20 @@ export default function LiveOpsDashboard() {
     // --- Main Dashboard Layout (Sidebar + Main) ---
 
     return (
-        <div style={{
-            height: '100vh',
-            display: 'flex',
-            background: '#0B1120',
-            color: 'white',
-            fontFamily: 'Outfit, sans-serif'
-        }}>
+        <div className="liveops-layout">
 
             {/* SIDEBAR */}
-            <div style={{
-                width: '280px',
-                background: '#1E293B',
-                borderRight: '1px solid rgba(255,255,255,0.05)',
-                display: 'flex',
-                flexDirection: 'column',
-                padding: '2rem 1rem 2rem 2rem', // Reduced right padding slightly for scrollbar
-                justifyContent: 'space-between',
-                flexShrink: 0,
-                overflowY: 'auto'
-            }}>
+            <div className="liveops-sidebar">
                 {/* Top Section */}
-                <div style={{ paddingRight: '1rem', display: 'flex', flexDirection: 'column', minHeight: 'min-content' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '3rem' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', minHeight: 'min-content' }}>
+                    <div className="liveops-brand">
                         <img src="/logo_aiutiti.png" alt="AIutiti" style={{ height: '40px', width: 'auto' }} />
                         <span style={{ fontSize: '1.8rem', fontWeight: 'bold' }}>AI<span style={{ color: '#FF4081' }}>utiti</span></span>
                     </div>
 
                     {/* Status Widget */}
-                    <div style={{
-                        background: 'rgba(255,255,255,0.03)',
-                        padding: '1.5rem',
-                        borderRadius: '20px',
-                        border: '1px solid rgba(255,255,255,0.05)',
-                        marginBottom: '2rem'
-                    }}>
-                        <div style={{ color: '#94A3B8', fontSize: '0.85rem', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 'bold' }}>Stato Turno</div>
+                    <div className="liveops-widget">
+                        <div className="liveops-section-title">Stato Turno</div>
                         <div style={{
                             display: 'flex', alignItems: 'center', gap: '0.8rem',
                             fontSize: '1.2rem', fontWeight: 'bold',
@@ -544,7 +523,7 @@ export default function LiveOpsDashboard() {
 
                         return (
                             <div>
-                                <div style={{ color: '#94A3B8', fontSize: '0.85rem', marginBottom: '1rem', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 'bold' }}>Panoramica</div>
+                                <div className="liveops-section-title">Panoramica</div>
 
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.8rem' }}>
                                     <span>Tavoli Occupati</span>
@@ -557,11 +536,7 @@ export default function LiveOpsDashboard() {
                                     <span style={{ fontWeight: 'bold', color: 'white' }}>{seatedPax}</span>
                                 </div>
 
-                                <div style={{
-                                    background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(15, 23, 42, 0.4))',
-                                    border: '1px solid rgba(16, 185, 129, 0.2)',
-                                    padding: '1rem', borderRadius: '16px', marginTop: '1.5rem', marginBottom: '2rem'
-                                }}>
+                                <div className="liveops-revenue-widget">
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#10B981', fontSize: '0.85rem', fontWeight: 'bold', textTransform: 'uppercase' }}>
                                         <Euro size={14} /> Incasso Proiettato
                                     </div>
@@ -581,7 +556,7 @@ export default function LiveOpsDashboard() {
                         return (
                             <>
                                 {/* Confirmed */}
-                                <div style={{ color: '#94A3B8', fontSize: '0.85rem', marginBottom: '1rem', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 'bold', display: 'flex', justifyContent: 'space-between' }}>
+                                <div className="liveops-section-title" style={{ display: 'flex', justifyContent: 'space-between' }}>
                                     <span>In Arrivo Oggi</span>
                                     <span style={{ background: '#3B82F6', color: 'white', padding: '0.1rem 0.5rem', borderRadius: '10px', fontSize: '0.75rem' }}>{confirmedRes.length}</span>
                                 </div>
@@ -620,7 +595,7 @@ export default function LiveOpsDashboard() {
                                 {/* Waitlist */}
                                 {waitlistRes.length > 0 && (
                                     <>
-                                        <div style={{ color: '#94A3B8', fontSize: '0.85rem', marginBottom: '1rem', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 'bold', display: 'flex', justifyContent: 'space-between' }}>
+                                        <div className="liveops-section-title" style={{ display: 'flex', justifyContent: 'space-between' }}>
                                             <span>Lista D'Attesa</span>
                                             <span style={{ background: '#F59E0B', color: 'white', padding: '0.1rem 0.5rem', borderRadius: '10px', fontSize: '0.75rem' }}>{waitlistRes.length}</span>
                                         </div>
@@ -666,16 +641,11 @@ export default function LiveOpsDashboard() {
                     {shiftState?.active ? (
                         <button
                             onClick={handleCloseShiftClick}
-                            style={{
-                                width: '100%', padding: '1rem', borderRadius: '12px', border: 'none',
-                                background: 'rgba(239, 68, 68, 0.1)', color: '#EF4444', fontWeight: 'bold', cursor: 'pointer',
-                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.8rem',
-                                transition: 'background 0.2s'
-                            }}
+                            className="liveops-btn-close"
                             onMouseEnter={(e) => e.target.style.background = 'rgba(239, 68, 68, 0.2)'}
                             onMouseLeave={(e) => e.target.style.background = 'rgba(239, 68, 68, 0.1)'}
                         >
-                            <StopCircle size={20} /> CHIUDI TURNO
+                            <StopCircle size={18} /> CHIUDI TURNO
                         </button>
                     ) : (
                         <button
@@ -693,14 +663,9 @@ export default function LiveOpsDashboard() {
 
                     <button
                         onClick={() => setIsAuthenticated(false)}
-                        style={{
-                            background: 'transparent',
-                            color: '#64748B',
-                            padding: '0.8rem',
-                            borderRadius: '12px',
-                            cursor: 'pointer',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', border: 'none'
-                        }}
+                        className="liveops-btn-logout"
+                        onMouseEnter={(e) => e.target.style.color = 'white'}
+                        onMouseLeave={(e) => e.target.style.color = '#64748B'}
                     >
                         <LogOut size={16} /> Esci
                     </button>
@@ -708,19 +673,15 @@ export default function LiveOpsDashboard() {
             </div>
 
             {/* MAIN CONTENT */}
-            <div style={{ flex: 1, padding: '2rem 3rem', overflowY: 'auto' }}>
+            <div className="liveops-main">
 
                 {/* Header */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '3rem', width: '100%', gap: '2rem' }}>
+                <div className="liveops-header">
                     <div>
-                        <h2 style={{ fontSize: '2.5rem', fontWeight: 'bold', margin: 0 }}>Sala Principale</h2>
+                        <h2 className="liveops-page-title">Sala Principale</h2>
                         <div style={{ color: '#94A3B8', marginTop: '0.5rem' }}>Gestione in tempo reale</div>
                     </div>
-                    <div style={{
-                        background: '#1E293B', padding: '0.8rem 1.5rem', borderRadius: '100px',
-                        fontSize: '0.9rem', color: '#94A3B8', border: '1px solid rgba(255,255,255,0.05)',
-                        marginLeft: 'auto' // Force right
-                    }}>
+                    <div className="liveops-date-badge">
                         {new Date().toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' })}
                     </div>
                 </div>
@@ -747,12 +708,7 @@ export default function LiveOpsDashboard() {
 
                 {/* TABLE GRID */}
                 {shiftState?.active && (
-                    <div style={{
-                        display: 'grid',
-                        gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
-                        gap: '2rem',
-                        paddingBottom: '4rem'
-                    }}>
+                    <div className="liveops-table-grid">
                         {tables.map(table => {
                             const isOccupied = table.session_status && table.session_status !== 'closed';
 

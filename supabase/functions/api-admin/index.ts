@@ -13,7 +13,8 @@ Deno.serve(async (req) => {
     }
 
     try {
-        const { action, password, date, query } = await req.json()
+        const body = await req.json()
+        const { action, password, date, query, offer } = body
         console.log(`DEBUG ADMIN: Action=${action} Date=${date} Query=${query}`);
 
         // Simple Auth Check (Server-side)
@@ -84,6 +85,57 @@ Deno.serve(async (req) => {
             }
 
             return new Response(JSON.stringify({ reservations: data }), {
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            })
+        }
+
+        if (action === 'get_offer') {
+            const { data: tenantData } = await adminSupabase.from('tenants').select('id').limit(1).single();
+            if (!tenantData) throw new Error("No tenant found");
+
+            const { data, error } = await adminSupabase
+                .from('tenant_settings')
+                .select('active_offer_text')
+                .eq('tenant_id', tenantData.id)
+                .maybeSingle();
+
+            if (error) {
+                console.error("DB Get Offer Error:", error);
+                throw error;
+            }
+
+            // Fetch history
+            const { data: historyData } = await adminSupabase
+                .from('marketing_history')
+                .select('promo_text')
+                .eq('tenant_id', tenantData.id)
+                .order('created_at', { ascending: false })
+                .limit(10);
+
+            return new Response(JSON.stringify({
+                offer: data?.active_offer_text || "",
+                history: historyData ? historyData.map(item => item.promo_text) : []
+            }), {
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            })
+        }
+
+        if (action === 'set_offer') {
+            const { data: tenantData } = await adminSupabase.from('tenants').select('id').limit(1).single();
+            if (!tenantData) throw new Error("No tenant found");
+
+            // Use the RPC to update setting and save to history
+            const { error } = await adminSupabase.rpc('admin_update_offer', {
+                p_tenant_id: tenantData.id,
+                p_offer_text: offer
+            });
+
+            if (error) {
+                console.error("DB Set Offer Error:", error);
+                throw error;
+            }
+
+            return new Response(JSON.stringify({ success: true, message: "Offer updated successfully" }), {
                 headers: { ...corsHeaders, 'Content-Type': 'application/json' },
             })
         }

@@ -50,12 +50,12 @@ async function parseMessageOpenAI(text: string, today: string, timezone: string,
     - If the user provides a name like "sono Mario", extract "Mario".
     - If the user provides just a name (e.g., "Carmelo", "Giulia"), treat it as intent "upsert" with customer_name set.
     - If the user provides a phone number, extract it.
-    - If the user says "confermo", "si", "si grazie", "va bene", "ok", intent is "confirm".
+    - If the user says "confermo", "si", "si grazie", "va bene", "ok", intent is "confirm" and you MUST generate a 'reply' thanking them.
     - If the user says "si in lista", "mettimi in attesa", "lista d'attesa", intent is "waitlist".
     - If the user says "disdico", "annulla", intent is "cancel".
     - If the user says "ciao", "buonasera", "salve", intent is "bho" and reply "Ciao! Vuoi prenotare un tavolo? Dimmi per quante persone e quando.".
     - If the user input is short and looks like a name or data (e.g. "4 persone", "ore 21"), treat as intent "upsert".
-    - ALWAYS provide a 'reply' field. If intent is 'bho', the reply MUST be a helpful question to guide the user.
+    - ALWAYS provide a 'reply' field. For "confirm", give a closing greeting. For 'bho', give a helpful question.
     `;
 
     try {
@@ -188,10 +188,13 @@ Deno.serve(async (req) => {
         // --- ANTI DOUBLE-BOOKING & USER MEMORY ---
         // Find if this session/chat_id already has an active reservation for today or the future
         let activeReservationContext = "";
+        let upsellContext = "";
+
         try {
             const startOfToday = new Date();
             startOfToday.setHours(0, 0, 0, 0);
 
+            // 1. Anti-Spam Check
             const { data: activeRes } = await adminSupabase
                 .from('reservations')
                 .select('party_size, start_at, status')
@@ -203,63 +206,110 @@ Deno.serve(async (req) => {
                 .single();
 
             if (activeRes) {
-                const resTime = format(toZonedTime(new Date(activeRes.start_at), timezone), "HH:mm");
+                const resZone = toZonedTime(new Date(activeRes.start_at), timezone);
+                const resTime = format(resZone, "HH:mm");
+                const resDate = format(resZone, "yyyy-MM-dd");
                 const resStatus = activeRes.status === 'waitlist' ? 'in LISTA D\'ATTESA' : 'CONFERMATA';
 
                 activeReservationContext = `
-                CRITICAL INSTRUCTION: The user ALREADY HAS an active reservation (${resStatus}) for today/future at ${resTime} for ${activeRes.party_size} people. 
-                - DO NOT allow them to make a NEW reservation for today under any circumstances to prevent double-booking.
-                - If they ask for a new table, politely decline, remind them of their existing reservation at ${resTime}, and ask if they want to modify or cancel the existing one instead.
-                - If they ask to modify/cancel, set intent to "cancel" or "upsert" accordingly.
-                - If they just say "ciao", welcome them back, remind them of their table at ${resTime}, and ask if they need anything else.`;
+                CRITICAL INSTRUCTION: The user ALREADY HAS an active reservation (${resStatus}) on ${resDate} at ${resTime} for ${activeRes.party_size} people. 
+                - DO NOT allow them to make a NEW reservation for EXACTLY THE SAME DATE (${resDate}) under any circumstances to prevent double-booking.
+                - If they ask to modify/cancel their existing reservation, set intent to "cancel" or "upsert" accordingly.`;
             }
         } catch (e) {
-            console.error("Error checking active reservations", e);
+            console.error("Error fetching active reservations info:", e);
         }
 
-        // Fix: Force 'today' to be the Timezone-aware local time string for the AI
-        // This prevents the AI from thinking it's "Yesterday" if server is UTC and it's late night
-        // 'today' variable in parseMessageOpenAI signature is strictly a Date object, but we want to pass a string description.
-        // Let's modify the signature of parseMessageOpenAI effectively or pass the adjusted date.
-        // Actually, let's just calculate the local date string here and pass it.
+        // 2. Pending Reservations State (for AI Memory)
+        let partialBookingContext = "";
+        let pendingRes = null;
+        try {
+            const { data: pr } = await adminSupabase
+                .from('pending_reservations')
+                .select('start_at, party_size, partial_date, partial_time')
+                .eq('chat_id', cleanChatId)
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .maybeSingle();
+            pendingRes = pr;
+
+            if (pendingRes && (pendingRes.partial_date || pendingRes.partial_time || pendingRes.party_size)) {
+                partialBookingContext = `
+                CURRENT BOOKING PROGRESS: The user is in the middle of making a booking. We already know:
+                - Date: ${pendingRes.partial_date || 'Unknown'}
+                - Time: ${pendingRes.partial_time || 'Unknown'}
+                - People: ${pendingRes.party_size || 'Unknown'}
+                CRITICAL: YOU MUST INCLUDE these known values in your JSON output along with any NEW information the user provides. Do not output null for known values unless the user explicitly changes them!`;
+            }
+        } catch (e) {
+            console.error("Error fetching pending state", e);
+        }
+
+        // 3. Upsell Offer Check
+        try {
+            const { data: tenantData } = await adminSupabase.from('tenants').select('id').limit(1).single();
+            if (tenantData) {
+                const { data: settings } = await adminSupabase
+                    .from('tenant_settings')
+                    .select('active_offer_text')
+                    .eq('tenant_id', tenantData.id)
+                    .maybeSingle();
+
+                if (settings?.active_offer_text) {
+                    let bookingDayRef = "stasera";
+                    if (pendingRes && pendingRes.start_at) {
+                        const resZoned = toZonedTime(new Date(pendingRes.start_at), timezone);
+                        const nowZoned = toZonedTime(new Date(), timezone);
+                        if (format(resZoned, "yyyy-MM-dd") !== format(nowZoned, "yyyy-MM-dd")) {
+                            const daysIt = ['Domenica', 'Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato'];
+                            bookingDayRef = daysIt[resZoned.getDay()].toLowerCase();
+                        }
+                    }
+
+                    upsellContext = `
+                    MARKETING INSTRUCTION: The restaurant has an active special offer: "${settings.active_offer_text}".
+                    - You MUST mention this offer IF AND ONLY IF you evaluate the intent as "confirm", OR if the user explicitly asks for the menu/offers.
+                    - IF the intent is "confirm", you MUST generate a 'reply' string containing a brief P.S. about this offer.
+                    - CRITICAL: When confirming, use "${bookingDayRef}" as the time reference in your greeting.
+                    - Example of 'reply' string: "Ottimo, ci vediamo ${bookingDayRef}! 🎉 PS: Ti ricordo che ${bookingDayRef} abbiamo la Fiorentina scontata del 20%, richiedila al cameriere!"
+                    - Make it sound natural, polite, and enthusiatic at the end of your 'reply'.
+                    - DO NOT mention the offer if you are evaluating anything else (like upsert, waitlist, bho).`;
+                }
+            }
+        } catch (e) {
+            console.error("Error checking context data from DB", e);
+        }
+
+        const fullContext = activeReservationContext + "\n" + partialBookingContext + "\n" + upsellContext;
+
         const now = new Date();
-        const localDate = toZonedTime(now, timezone); // date-fns-tz
-        // We pass localDate (Date object representing local time) to the function. 
-        // NOTE: The function parseMessageOpenAI takes a Date and calls .toISOString(). 
-        // If we pass a "shifted" Date, toISOString() will trigger UTC conversion again which might be confusing.
-        // BETTER APPROACH: Pass the formatted string directly to the prompt inside the function.
-        // Let's assume we change `parseMessageOpenAI` to take `dateTimeStr` instead of `Date`.
-        // For now, let's format it here and update the function call.
+        const localDate = toZonedTime(now, timezone);
+        const localDateTimeStr = format(localDate, "yyyy-MM-dd HH:mm");
 
-        const localDateTimeStr = format(localDate, "yyyy-MM-dd HH:mm"); // e.g. 2026-02-17 18:40
-        const result = await parseMessageOpenAI(message || '', localDateTimeStr, timezone, openAiKey, activeReservationContext);
+        const result = await parseMessageOpenAI(message || '', localDateTimeStr, timezone, openAiKey, fullContext);
 
-        // If AI generated a direct reply for missing info (e.g. "Per quando?"), use it as default.
         let replyText = result.reply || "Non ho capito 😅 Dimmi per quante persone e a che ora vuoi prenotare.";
 
-        // 3. Format Date for RPC
         let p_start_at = undefined;
         if (result.date && result.time) {
             const iso = parseToIso(result.date, result.time, timezone);
             if (iso) p_start_at = iso;
         }
 
-        // --- LOGIC FLOW ---
-
         if (result.intent === 'upsert' || result.intent === 'availability') {
 
-            // Construct Payload
             const rpcPayload: any = {
                 p_chat_id: cleanChatId,
                 p_source: cleanSource,
                 p_session_id: cleanSessionId,
-                p_customer_name: result.customer_name, // Can be null
-                p_phone: result.phone // Can be null
+                p_customer_name: result.customer_name,
+                p_phone: result.phone
             };
 
-            // Add extracted core params if available
             if (result.people) rpcPayload.p_party_size = result.people;
             if (p_start_at) rpcPayload.p_start_at = p_start_at;
+            if (result.date) rpcPayload.p_partial_date = result.date;
+            if (result.time) rpcPayload.p_partial_time = result.time;
 
             // Call Upsert (ADMIN)
             let { data: pendingRowRaw, error } = await adminSupabase.rpc('web_upsert_pending', rpcPayload);
@@ -289,8 +339,12 @@ Deno.serve(async (req) => {
                 }
             } else {
                 // We have a pending row. Check state.
-                if (pendingRow.assigned_option_id) {
-                    // Have Option
+                if (!pendingRow.start_at || !pendingRow.party_size) {
+                    // We are still collecting core info
+                    if (!pendingRow.party_size) replyText = "Per quante persone?";
+                    else if (!pendingRow.start_at) replyText = "A che ora e per quale giorno?";
+                } else if (pendingRow.assigned_option_id) {
+                    // Have Option and we know it's not missing core info
                     if (!pendingRow.customer_name) {
                         replyText = "Disponibilità confermata! A che nome prenoto?";
                     } else if (!pendingRow.phone) {
@@ -321,7 +375,12 @@ Deno.serve(async (req) => {
                 const reason = confirmData.reason;
 
                 if (status === 'OK') {
-                    replyText = `Prenotazione Confermata! Numero prenotazione: ${confirmData.reservation_id}`;
+                    // Se l'IA ha generato un messaggio (che dovrebbe contenere il P.S. dell'upselling), lo usiamo e aggiungiamo l'ID
+                    if (result.reply && result.reply.length > 5) {
+                        replyText = `${result.reply}\n\n(ID Prenotazione: ${confirmData.reservation_id})`;
+                    } else {
+                        replyText = `Prenotazione Confermata! Numero prenotazione: ${confirmData.reservation_id}`;
+                    }
 
                     // --- ADMIN NOTIFICATION ---
                     console.log(`[NOTIFY] Sending Telegram for ID: ${confirmData.reservation_id}`);
@@ -398,7 +457,7 @@ Deno.serve(async (req) => {
 
             if (error) {
                 console.error("Cancel RPC Error:", error);
-                replyText = "Si è verificato un errore tecnico durante la cancellazione.";
+                replyText = "Si è verificato un errore tecnico durante la cancellazione. Dettagli DB: " + (error.message || JSON.stringify(error));
             } else if (cancelData?.status === 'OK') {
                 if (cancelData.type === 'confirmed') {
                     replyText = "La tua prenotazione confermata è stata cancellata correttamente. Alla prossima!";
